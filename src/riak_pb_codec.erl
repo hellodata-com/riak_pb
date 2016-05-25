@@ -91,7 +91,8 @@ encode({Msg}) when is_atom(Msg) ->
 encode(Msg) when is_tuple(Msg) ->
     MsgType = element(1, Msg),
     Encoder = encoder_for(MsgType),
-    [msg_code(MsgType) | Encoder:encode(Msg)].
+    M = maybe_fixup(Msg),
+    [msg_code(MsgType) | Encoder:encode_msg(M)].
 
 %% ------------------------------------------------------------
 %% Encode a message when no content body is present (message atom
@@ -121,7 +122,7 @@ decode(MsgCode, <<>>) ->
     msg_type(MsgCode);
 decode(MsgCode, MsgData) ->
     Decoder = decoder_for(MsgCode),
-    Decoded = Decoder:decode(msg_type(MsgCode), MsgData),
+    Decoder:decode_msg(MsgData, msg_type(MsgCode)).
     post_decode(Decoded).
 
 %% @doc Converts a message code into the symbolic message
@@ -401,6 +402,14 @@ decode_repl('TRUE') -> true;
 decode_repl('FALSE') -> false;
 decode_repl('REALTIME') -> realtime;
 decode_repl('FULLSYNC') -> fullsync.
+
+%% @doc Fixup messages that have bytes fields
+%% @private
+maybe_fixup(#rpberrorresp{errmsg=ErrMsg}=Msg) when is_list(ErrMsg) ->
+    ErrMsgBin = list_to_binary(ErrMsg),
+    Msg#rpberrorresp{errmsg=ErrMsgBin};
+maybe_fixup(Msg) ->
+    Msg.
 
 safe_to_atom(Binary) when is_binary(Binary) ->
     try
